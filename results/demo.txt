@@ -1,0 +1,15 @@
+$ sudo gcr run --memory 64m --pids 32 --hostname sandbox -- sh -c 'echo "pid $$ on $(hostname)"; ls /sys/class/net; cat /etc/alpine-release; mount | head -1'
+pid 1 on sandbox
+lo
+3.24.4
+overlay on / type overlay (rw,relatime,lowerdir=/home/dhiyaan/Code/go-container-runtime/rootfs,upperdir=/run/gcr/c770405e0589/upper,workdir=/run/gcr/c770405e0589/work,uuid=on)
+
+$ sudo gcr run --memory 32m -- tail /dev/zero; echo "exit $?"
+exit 137
+
+$ sudo gcr serve --pool 4 &
+$ sudo gcr exec -- sh -c 'echo hello from $(hostname)'
+hello from 05c81c5b9884
+$ sudo gcr exec -- sh -c 'echo hello from $(hostname)'
+hello from 552200f35d2c
+$ sudo kill %1   # serve kills idle containers and removes their cgroups and overlays
