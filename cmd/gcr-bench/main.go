@@ -252,12 +252,20 @@ func phases(n int, argv func(string) []string, tmp string, fills *[]float64) []p
 		if fills != nil {
 			*fills = append(*fills, float64(tf.FillNS)/1e6)
 		}
-		for i := 1; i < len(tf.Phases); i++ {
-			k := [2]string{tf.Phases[i-1].Name, tf.Phases[i].Name}
+		// "clone" is when the parent's fork call returned, which races with
+		// the child's first mark; leave it out so the sequence is fixed.
+		ps := tf.Phases[:0]
+		for _, p := range tf.Phases {
+			if p.Name != "clone" {
+				ps = append(ps, p)
+			}
+		}
+		for i := 1; i < len(ps); i++ {
+			k := [2]string{ps[i-1].Name, ps[i].Name}
 			if _, ok := deltas[k]; !ok {
 				order = append(order, k)
 			}
-			deltas[k] = append(deltas[k], float64(tf.Phases[i].NS-tf.Phases[i-1].NS)/1e6)
+			deltas[k] = append(deltas[k], float64(ps[i].NS-ps[i-1].NS)/1e6)
 		}
 	}
 	var out []phaseStat
@@ -319,6 +327,20 @@ func loadavg() string {
 	return strings.TrimSpace(string(b))
 }
 
+var phaseWhat = map[string]string{
+	"start>state_dir":               "create overlay upper/work/merged dirs",
+	"state_dir>cgroup":              "create cgroup, write limits",
+	"cgroup>init_start":             "clone into new namespaces and the cgroup, re-exec gcr as init",
+	"init_start>rootfs_ready":       "mount overlay, /proc, /sys, /dev, /tmp; pivot_root",
+	"rootfs_ready>namespaces_ready": "bring up lo, set hostname",
+	"namespaces_ready>exec":         "resolve the command",
+	"namespaces_ready>request_sent": "idle in the pool (not on the request path)",
+	"request_sent>request_received": "send command and stdio fds over the control socket",
+	"request_received>exec":         "resolve the command",
+	"exec>exited":                   "execve /bin/true, run, exit, PID namespace teardown, reap",
+	"exited>cleaned_up":             "kill cgroup, remove it and the overlay dirs",
+}
+
 func markdown(r report) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Start-to-exit latency of `/bin/true`, n=%d per row, %s, kernel %s, %s CPUs (%s). Load before/after: %s / %s.\n\n",
@@ -327,14 +349,14 @@ func markdown(r report) string {
 	for _, c := range r.Cases {
 		fmt.Fprintf(&b, "| %s | %.2f | %.2f | %.2f | %.2f | %d |\n", c.Name, c.Stats.P50, c.Stats.P90, c.Stats.P99, c.Stats.Min, c.Stats.Failed)
 	}
-	b.WriteString("\nCold `gcr run` phases (median ms between consecutive marks):\n\n| From | To | p50 ms | p90 ms |\n|---|---|---:|---:|\n")
-	for _, p := range r.ColdPhases {
-		fmt.Fprintf(&b, "| %s | %s | %.3f | %.3f |\n", p.From, p.To, p.P50, p.P90)
+	table := func(title string, ps []phaseStat) {
+		fmt.Fprintf(&b, "\n%s\n\n| Step | What happens | p50 ms | p90 ms |\n|---|---|---:|---:|\n", title)
+		for _, p := range ps {
+			fmt.Fprintf(&b, "| %s → %s | %s | %.3f | %.3f |\n", p.From, p.To, phaseWhat[p.From+">"+p.To], p.P50, p.P90)
+		}
 	}
-	b.WriteString("\nWarm `gcr exec` phases inside the daemon:\n\n| From | To | p50 ms | p90 ms |\n|---|---|---:|---:|\n")
-	for _, p := range r.WarmPhases {
-		fmt.Fprintf(&b, "| %s | %s | %.3f | %.3f |\n", p.From, p.To, p.P50, p.P90)
-	}
+	table("Cold `gcr run` phases (time between consecutive marks):", r.ColdPhases)
+	table("Warm `gcr exec` phases inside the daemon:", r.WarmPhases)
 	fmt.Fprintf(&b, "\nWarm pool refill cost per container (off the request path): p50 %.2f ms, p90 %.2f ms.\n", r.WarmFill.P50, r.WarmFill.P90)
 	return b.String()
 }
