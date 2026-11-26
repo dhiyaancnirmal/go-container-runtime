@@ -33,26 +33,26 @@ Each `exec` gets a fresh container (new hostname, fresh overlay); nothing writte
 
 ## Results
 
-Start-to-exit latency of `/bin/true` from Alpine 3.24 on one machine (AMD Ryzen 3 3200G, 4 cores, kernel 6.12, shared with other jobs, 1-minute load 2.1 before and 3.7 after). Every row is timed the same way: wall time of the harness running that CLI until it exits. n=200 per row, interleaved round-robin. Source: [results/startup.json](results/startup.json) ([table](results/startup.md)).
+Start-to-exit latency of `/bin/true` from Alpine 3.24 on one machine (AMD Ryzen 3 3200G, 4 cores, kernel 6.12, shared with other jobs, 1-minute load 1.4 before and 3.8 after). Every row is timed the same way: wall time of the harness running that CLI until it exits. n=200 per row, interleaved round-robin. Source: [results/startup.json](results/startup.json) ([table](results/startup.md)).
 
 | Runtime | p50 ms | p90 ms | p99 ms |
 |---|---:|---:|---:|
-| host fork+exec, no isolation (floor) | 0.66 | 0.80 | 3.88 |
-| **gcr exec, warm pool** | **4.00** | **5.92** | **11.38** |
-| gcr exec, pool drained | 6.46 | 8.88 | 18.30 |
-| **gcr run, cold** | **5.70** | **8.21** | **15.58** |
-| gcr run, cold, no network namespace | 5.29 | 7.47 | 13.39 |
-| runc run 1.1.15 | 35.54 | 44.97 | 51.41 |
-| docker run --network none (26.1.5) | 177.37 | 296.71 | 336.94 |
-| docker run, bridge network | 283.26 | 400.79 | 435.45 |
+| host fork+exec, no isolation (floor) | 0.66 | 0.75 | 1.07 |
+| **gcr exec, warm pool** | **3.91** | **5.46** | **10.25** |
+| gcr exec, pool drained | 6.26 | 8.73 | 11.33 |
+| **gcr run, cold** | **5.59** | **7.17** | **13.38** |
+| gcr run, cold, no network namespace | 5.17 | 6.54 | 11.99 |
+| runc run 1.1.15 | 34.66 | 42.59 | 49.61 |
+| docker run --network none (26.1.5) | 177.04 | 283.23 | 309.94 |
+| docker run, bridge network | 278.33 | 381.08 | 410.15 |
 
 What the numbers say:
 
-- **Cold against cold**, gcr starts and exits in 5.70 ms at the median: 6.2x faster than `runc run` (35.54 ms) and 31x faster than `docker run --network none` (177.37 ms).
-- **The warm pool** brings that to 4.00 ms, 1.4x faster than gcr's cold path. It moves 4.11 ms (p50) of build work per container off the request path into the background refill. With the pool empty, a request costs 6.46 ms, about the same as a cold run.
-- **Why the pool saves only 1.4x:** inside the daemon, a warm request takes about 1.15 ms from handing over the command to exit (sum of p50 steps below), against about 3.9 ms for a cold container's start to exit. The other ~2.9 ms of the warm row is the `gcr exec` client: starting a Go process, connecting and the socket round trip. An in-process client would get close to that 1.15 ms; this is the next thing to optimise.
-- **Where cold time goes:** the largest step is `clone` into the new namespaces plus re-exec of the Go binary as init (2.19 ms). Overlay and the other mounts plus `pivot_root` take 0.65 ms, cgroup creation 0.11 ms, cleanup 0.17 ms.
-- **Network namespaces:** an empty one adds about 0.4 ms at p50. Its teardown runs asynchronously in the kernel, so no row includes it. Bridge networking adds about 106 ms to `docker run`.
+- **Cold against cold**, gcr starts and exits in 5.59 ms at the median: 6.2x faster than `runc run` (34.66 ms) and 32x faster than `docker run --network none` (177.04 ms).
+- **The warm pool** brings that to 3.91 ms, 1.4x faster than gcr's cold path. It moves 3.39 ms (p50) of build work per container off the request path into the background refill. With the pool empty, a request costs 6.26 ms, about the same as a cold run.
+- **Why the pool saves only 1.4x:** inside the daemon, a warm request takes about 0.97 ms from handing over the command to exit (sum of p50 steps below), against about 3.5 ms for a cold container's start to exit. The other ~2.9 ms of the warm row is the `gcr exec` client: starting a Go process, connecting and the socket round trip. An in-process client would get close to that 0.97 ms; this is the next thing to optimise.
+- **Where cold time goes:** the largest step is `clone` into the new namespaces plus re-exec of the Go binary as init (1.93 ms). Overlay and the other mounts plus `pivot_root` take 0.57 ms, cgroup creation 0.11 ms, cleanup 0.15 ms.
+- **Network namespaces:** an empty one adds about 0.4 ms at p50. Its teardown runs asynchronously in the kernel, so no row includes it. Bridge networking adds about 101 ms to `docker run`.
 
 What the comparison does and does not show:
 
@@ -64,20 +64,20 @@ Cold `gcr run` steps, p50 ms (from `--timing`, separate runs):
 
 | Step | p50 ms |
 |---|---:|
-| state dir, cgroup and limits | 0.25 |
-| clone into namespaces and cgroup, re-exec as init | 2.19 |
-| overlay and other mounts, pivot_root | 0.65 |
-| loopback up, hostname | 0.10 |
-| exec /bin/true, exit, PID namespace teardown, reap | 0.74 |
-| cleanup (cgroup.kill, rmdir, remove overlay dirs) | 0.17 |
+| state dir, cgroup and limits | 0.23 |
+| clone into namespaces and cgroup, re-exec as init | 1.93 |
+| overlay and other mounts, pivot_root | 0.57 |
+| loopback up, hostname | 0.09 |
+| exec /bin/true, exit, PID namespace teardown, reap | 0.70 |
+| cleanup (cgroup.kill, rmdir, remove overlay dirs) | 0.15 |
 
 Warm `gcr exec` steps on the request path, p50 ms:
 
 | Step | p50 ms |
 |---|---:|
-| send command and stdio fds to the parked init | 0.11 |
+| send command and stdio fds to the parked init | 0.09 |
 | resolve the command | 0.01 |
-| exec /bin/true, exit, PID namespace teardown, reap | 1.04 |
+| exec /bin/true, exit, PID namespace teardown, reap | 0.87 |
 
 ## Reproduce
 

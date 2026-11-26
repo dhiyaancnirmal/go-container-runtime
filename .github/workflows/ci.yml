@@ -11,6 +11,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false # no dependencies, so no go.sum to key a cache on
       - name: Kernel and cgroup info
         run: |
           uname -a
