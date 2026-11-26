@@ -6,62 +6,78 @@ The question it answers: how fast can a plain Linux container start, where does 
 
 ## A real run
 
-From [results/demo.txt](results/demo.txt), on Doji (Debian 13, kernel 6.12):
+From [results/demo.txt](results/demo.txt), recorded by [scripts/demo.sh](scripts/demo.sh) as root on Debian 13, kernel 6.12 (overlay line shortened):
 
 ```
-$ sudo gcr run --memory 64m --pids 32 --hostname sandbox -- sh -c 'echo "pid $$ on $(hostname)"; ls /sys/class/net; cat /etc/alpine-release; mount | head -1'
+$ gcr run --memory 64m --pids 32 --hostname sandbox -- sh -c 'echo "pid $$ on $(hostname)"; ls /sys/class/net; cat /etc/alpine-release; mount | head -1'
 pid 1 on sandbox
 lo
 3.24.4
-overlay on / type overlay (rw,relatime,lowerdir=/home/dhiyaan/Code/go-container-runtime/rootfs,upperdir=/run/gcr/c770405e0589/upper,...)
+overlay on / type overlay (rw,relatime,lowerdir=.../rootfs,upperdir=/run/gcr/13d5eacf0e9c/upper,workdir=/run/gcr/13d5eacf0e9c/work,uuid=on)
 
-$ sudo gcr run --memory 32m -- tail /dev/zero; echo "exit $?"
+$ gcr run --memory 32m -- tail /dev/zero; echo "exit $?"
 exit 137
 
-$ sudo gcr serve --pool 4 &
-$ sudo gcr exec -- sh -c 'echo hello from $(hostname)'
-hello from 05c81c5b9884
-$ sudo gcr exec -- sh -c 'echo hello from $(hostname)'
-hello from 552200f35d2c
+$ gcr serve --pool 4 &
+$ gcr exec -- sh -c 'echo hello from $(hostname); echo scratch > /tmp/note'
+hello from 9bddaf6b3753
+$ gcr exec -- sh -c 'echo hello from $(hostname); cat /tmp/note 2>/dev/null || echo "no /tmp/note: fresh container"'
+hello from afea346b0149
+no /tmp/note: fresh container
+$ kill %1
+$ echo "containers left: $(ls /run/gcr | wc -l) state dirs, $(find /sys/fs/cgroup/gcr -mindepth 1 -type d | wc -l) cgroups"
+containers left: 0 state dirs, 0 cgroups
 ```
 
 Each `exec` gets a fresh container (new hostname, fresh overlay); nothing written by one request is visible to the next.
 
 ## Results
 
-Start-to-exit latency of `/bin/true` from Alpine 3.24 on one machine (AMD Ryzen 3 3200G, 4 cores, kernel 6.12, shared host, load 2.9 to 4.7 during the run). Every row is timed the same way: wall time of the harness running that CLI until it exits. n=200 per row. Source: [results/startup.json](results/startup.json) ([table](results/startup.md)).
+Start-to-exit latency of `/bin/true` from Alpine 3.24 on one machine (AMD Ryzen 3 3200G, 4 cores, kernel 6.12, shared with other jobs, 1-minute load 2.1 before and 3.7 after). Every row is timed the same way: wall time of the harness running that CLI until it exits. n=200 per row, interleaved round-robin. Source: [results/startup.json](results/startup.json) ([table](results/startup.md)).
 
 | Runtime | p50 ms | p90 ms | p99 ms |
 |---|---:|---:|---:|
-| host fork+exec, no isolation (floor) | 0.65 | 0.76 | 2.27 |
-| **gcr exec, warm pool** | **3.89** | **6.24** | **15.23** |
-| gcr exec, pool drained | 6.43 | 9.38 | 21.34 |
-| gcr run, cold | 5.87 | 8.28 | 20.60 |
-| gcr run, cold, no network namespace | 5.44 | 7.14 | 14.52 |
-| runc run 1.1.15 | 35.44 | 44.84 | 58.12 |
-| docker run --network none (26.1.5) | 177.44 | 225.79 | 334.68 |
-| docker run, bridge network | 276.65 | 344.30 | 433.00 |
+| host fork+exec, no isolation (floor) | 0.66 | 0.80 | 3.88 |
+| **gcr exec, warm pool** | **4.00** | **5.92** | **11.38** |
+| gcr exec, pool drained | 6.46 | 8.88 | 18.30 |
+| **gcr run, cold** | **5.70** | **8.21** | **15.58** |
+| gcr run, cold, no network namespace | 5.29 | 7.47 | 13.39 |
+| runc run 1.1.15 | 35.54 | 44.97 | 51.41 |
+| docker run --network none (26.1.5) | 177.37 | 296.71 | 336.94 |
+| docker run, bridge network | 283.26 | 400.79 | 435.45 |
 
 What the numbers say:
 
-- A warm-pool sandbox starts and finishes in 3.9 ms at the median: 1.5x faster than gcr's own cold path, 9x faster than runc and 46x faster than `docker run --network none`.
-- The pool moves 4.13 ms (p50) of build work per container off the request path; each request pays for it in the background refill. When the pool is empty, a request costs 6.43 ms, about the same as a cold run.
-- In the cold path, the largest step is `clone` into the new namespaces plus re-exec of the Go binary as init (2.41 ms of 5.87 ms). Overlay mount, the other mounts and `pivot_root` together take 0.68 ms; cgroup creation 0.12 ms; cleanup 0.18 ms.
-- An empty network namespace adds about 0.4 ms at p50 to cold start. Its teardown runs asynchronously in the kernel, so no row includes it.
-- Docker's extra time is its client, daemon, containerd and shim. Bridge networking adds about 100 ms more.
+- **Cold against cold**, gcr starts and exits in 5.70 ms at the median: 6.2x faster than `runc run` (35.54 ms) and 31x faster than `docker run --network none` (177.37 ms).
+- **The warm pool** brings that to 4.00 ms, 1.4x faster than gcr's cold path. It moves 4.11 ms (p50) of build work per container off the request path into the background refill. With the pool empty, a request costs 6.46 ms, about the same as a cold run.
+- **Why the pool saves only 1.4x:** inside the daemon, a warm request takes about 1.15 ms from handing over the command to exit (sum of p50 steps below), against about 3.9 ms for a cold container's start to exit. The other ~2.9 ms of the warm row is the `gcr exec` client: starting a Go process, connecting and the socket round trip. An in-process client would get close to that 1.15 ms; this is the next thing to optimise.
+- **Where cold time goes:** the largest step is `clone` into the new namespaces plus re-exec of the Go binary as init (2.19 ms). Overlay and the other mounts plus `pivot_root` take 0.65 ms, cgroup creation 0.11 ms, cleanup 0.17 ms.
+- **Network namespaces:** an empty one adds about 0.4 ms at p50. Its teardown runs asynchronously in the kernel, so no row includes it. Bridge networking adds about 106 ms to `docker run`.
 
-Caveats: runc's row uses runc's default spec with a read-only rootfs and no overlay, so runc does less filesystem work than gcr. The warm row includes the `gcr exec` client's own Go process start. The host is shared with other jobs, so p99 is noisy.
+What the comparison does and does not show:
 
-Cold `gcr run` phases, p50 ms (from `--timing`, separate runs):
+- gcr does less than runc. runc's default spec also drops capabilities, masks and read-only-mounts parts of `/proc` and `/sys`, sets up more mounts, applies the full OCI config and writes state files; gcr does none of that. In return, runc's row uses a read-only rootfs with no overlay, so gcr does more filesystem work. Read the runc and Docker rows as "what a full-featured runtime costs on this machine", not as a like-for-like race.
+- Docker's extra ~140 ms over runc is most likely its client, dockerd, containerd and shim layers ([research notes](docs/research.md#where-container-start-time-goes)); this benchmark does not break that down.
+- The host was shared with other jobs, so p99 is noisy.
+
+Cold `gcr run` steps, p50 ms (from `--timing`, separate runs):
 
 | Step | p50 ms |
 |---|---:|
-| state dir and cgroup with limits | 0.28 |
-| clone into namespaces and cgroup, re-exec as init | 2.41 |
-| overlay and other mounts, pivot_root | 0.68 |
-| loopback up, hostname | 0.11 |
-| exec /bin/true, exit, PID namespace teardown, reap | 0.82 |
-| cleanup (cgroup.kill, rmdir, remove overlay dirs) | 0.18 |
+| state dir, cgroup and limits | 0.25 |
+| clone into namespaces and cgroup, re-exec as init | 2.19 |
+| overlay and other mounts, pivot_root | 0.65 |
+| loopback up, hostname | 0.10 |
+| exec /bin/true, exit, PID namespace teardown, reap | 0.74 |
+| cleanup (cgroup.kill, rmdir, remove overlay dirs) | 0.17 |
+
+Warm `gcr exec` steps on the request path, p50 ms:
+
+| Step | p50 ms |
+|---|---:|
+| send command and stdio fds to the parked init | 0.11 |
+| resolve the command | 0.01 |
+| exec /bin/true, exit, PID namespace teardown, reap | 1.04 |
 
 ## Reproduce
 
@@ -94,10 +110,11 @@ make bench    # writes results/startup.json and results/startup.md
 - the overlay never writes to the shared rootfs and containers never see each other's writes;
 - `--memory` OOM-kills (exit 137), `--pids 8` stops 20 forks that succeed without the limit, `--cpus 0.2` cuts a 1 s busy loop to about a fifth of the CPU time of an unlimited run;
 - no cgroup, state dir or process survives a normal exit, a SIGTERM to the runtime, or a SIGKILL followed by `gcr gc`;
-- warm pool requests get fresh containers and their exit codes and stdio.
+- warm pool requests get fresh containers and their exit codes and stdio;
+- stopping `gcr serve` mid-request kills the running and idle containers and leaves nothing behind.
 
 CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs `make test` on every push.
 
 ## Limits
 
-No user namespaces (runs as root, like rootful runc), no seccomp or capability dropping, no image pulling (a directory is the image), and network namespaces have only loopback. These are the next steps for a real multi-tenant sandbox; the benchmark compares against runc and Docker with networking matched where it matters (`--network none`).
+gcr isolates and limits processes, but it is not yet a security boundary for untrusted code: no user namespaces (runs as root, like rootful runc), no seccomp or capability dropping, no image pulling (a directory is the image), and network namespaces have only loopback. These are the next steps for a real multi-tenant sandbox; the benchmark compares against runc and Docker with networking matched where it matters (`--network none`).

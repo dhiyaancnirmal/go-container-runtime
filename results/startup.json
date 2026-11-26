@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-26T20:09:21Z",
+  "date": "2026-11-26T20:16:32Z",
   "host": {
     "cpu": "AMD Ryzen 3 3200G with Radeon Vega Graphics",
     "cpus": "4",
@@ -21,12 +21,12 @@
       "clock": "harness fork+exec+wait, no isolation",
       "stats": {
         "n": 200,
-        "min_ms": 0.507,
-        "p50_ms": 0.645,
-        "p90_ms": 0.763,
-        "p99_ms": 2.275,
-        "mean_ms": 0.689,
-        "max_ms": 3.706,
+        "min_ms": 0.495,
+        "p50_ms": 0.664,
+        "p90_ms": 0.802,
+        "p99_ms": 3.877,
+        "mean_ms": 0.752,
+        "max_ms": 4.784,
         "failed": 0
       }
     },
@@ -36,19 +36,19 @@
         "/home/dhiyaan/Code/go-container-runtime/bin/gcr",
         "exec",
         "--socket",
-        "/tmp/gcr-bench426741678/warm.sock",
+        "/tmp/gcr-bench1172120511/warm.sock",
         "--",
         "/bin/true"
       ],
       "clock": "client CLI start to exit; pool already holds a ready container",
       "stats": {
         "n": 200,
-        "min_ms": 2.953,
-        "p50_ms": 3.889,
-        "p90_ms": 6.237,
-        "p99_ms": 15.228,
-        "mean_ms": 4.552,
-        "max_ms": 17.388,
+        "min_ms": 2.75,
+        "p50_ms": 3.999,
+        "p90_ms": 5.922,
+        "p99_ms": 11.383,
+        "mean_ms": 4.499,
+        "max_ms": 17.155,
         "failed": 0
       }
     },
@@ -58,19 +58,19 @@
         "/home/dhiyaan/Code/go-container-runtime/bin/gcr",
         "exec",
         "--socket",
-        "/tmp/gcr-bench426741678/drained.sock",
+        "/tmp/gcr-bench1172120511/drained.sock",
         "--",
         "/bin/true"
       ],
       "clock": "client CLI start to exit; container built on request through the daemon",
       "stats": {
         "n": 200,
-        "min_ms": 5.463,
-        "p50_ms": 6.434,
-        "p90_ms": 9.376,
-        "p99_ms": 21.344,
-        "mean_ms": 7.402,
-        "max_ms": 22.207,
+        "min_ms": 5.277,
+        "p50_ms": 6.46,
+        "p90_ms": 8.885,
+        "p99_ms": 18.304,
+        "mean_ms": 7.084,
+        "max_ms": 26.406,
         "failed": 0
       }
     },
@@ -87,12 +87,12 @@
       "clock": "CLI start to exit, includes cleanup",
       "stats": {
         "n": 200,
-        "min_ms": 5.121,
-        "p50_ms": 5.865,
-        "p90_ms": 8.281,
-        "p99_ms": 20.6,
-        "mean_ms": 6.642,
-        "max_ms": 23.286,
+        "min_ms": 5.005,
+        "p50_ms": 5.704,
+        "p90_ms": 8.213,
+        "p99_ms": 15.58,
+        "mean_ms": 6.338,
+        "max_ms": 18.327,
         "failed": 0
       }
     },
@@ -110,12 +110,12 @@
       "clock": "same, without a network namespace",
       "stats": {
         "n": 200,
-        "min_ms": 4.618,
-        "p50_ms": 5.44,
-        "p90_ms": 7.139,
-        "p99_ms": 14.518,
-        "mean_ms": 5.969,
-        "max_ms": 17.04,
+        "min_ms": 4.518,
+        "p50_ms": 5.291,
+        "p90_ms": 7.467,
+        "p99_ms": 13.388,
+        "mean_ms": 5.792,
+        "max_ms": 17.075,
         "failed": 0
       }
     },
@@ -125,18 +125,18 @@
         "/usr/sbin/runc",
         "run",
         "--bundle",
-        "/tmp/gcr-bench426741678/runc",
+        "/tmp/gcr-bench1172120511/runc",
         "ID"
       ],
       "clock": "CLI start to exit, default runc spec, read-only rootfs (no overlay)",
       "stats": {
         "n": 200,
-        "min_ms": 20.182,
-        "p50_ms": 35.436,
-        "p90_ms": 44.837,
-        "p99_ms": 58.121,
-        "mean_ms": 36.167,
-        "max_ms": 72.911,
+        "min_ms": 20.997,
+        "p50_ms": 35.538,
+        "p90_ms": 44.974,
+        "p99_ms": 51.412,
+        "mean_ms": 35.605,
+        "max_ms": 55.143,
         "failed": 0
       }
     },
@@ -154,12 +154,12 @@
       "clock": "CLI start to exit (client, dockerd, containerd, shim, runc)",
       "stats": {
         "n": 200,
-        "min_ms": 156.681,
-        "p50_ms": 177.44,
-        "p90_ms": 225.788,
-        "p99_ms": 334.679,
-        "mean_ms": 190.301,
-        "max_ms": 369.3,
+        "min_ms": 155.206,
+        "p50_ms": 177.365,
+        "p90_ms": 296.712,
+        "p99_ms": 336.936,
+        "mean_ms": 203.253,
+        "max_ms": 345.275,
         "failed": 0
       }
     },
@@ -175,12 +175,12 @@
       "clock": "same, default bridge network",
       "stats": {
         "n": 200,
-        "min_ms": 240.323,
-        "p50_ms": 276.649,
-        "p90_ms": 344.297,
-        "p99_ms": 432.999,
-        "mean_ms": 289.724,
-        "max_ms": 481.315,
+        "min_ms": 239.548,
+        "p50_ms": 283.257,
+        "p90_ms": 400.786,
+        "p99_ms": 435.448,
+        "mean_ms": 304.761,
+        "max_ms": 469.308,
         "failed": 0
       }
     }
@@ -189,120 +189,120 @@
     {
       "from": "start",
       "to": "state_dir",
-      "p50_ms": 0.153,
-      "p90_ms": 0.181
+      "p50_ms": 0.133,
+      "p90_ms": 0.165
     },
     {
       "from": "state_dir",
       "to": "cgroup",
-      "p50_ms": 0.123,
-      "p90_ms": 0.143
+      "p50_ms": 0.114,
+      "p90_ms": 0.133
     },
     {
       "from": "cgroup",
       "to": "init_start",
-      "p50_ms": 2.414,
-      "p90_ms": 3.706
+      "p50_ms": 2.188,
+      "p90_ms": 2.737
     },
     {
       "from": "init_start",
       "to": "rootfs_ready",
-      "p50_ms": 0.684,
-      "p90_ms": 1.048
+      "p50_ms": 0.648,
+      "p90_ms": 0.869
     },
     {
       "from": "rootfs_ready",
       "to": "namespaces_ready",
-      "p50_ms": 0.11,
-      "p90_ms": 0.157
+      "p50_ms": 0.102,
+      "p90_ms": 0.146
     },
     {
       "from": "namespaces_ready",
       "to": "exec",
       "p50_ms": 0.003,
-      "p90_ms": 0.005
+      "p90_ms": 0.004
     },
     {
       "from": "exec",
       "to": "exited",
-      "p50_ms": 0.816,
-      "p90_ms": 1.148
+      "p50_ms": 0.736,
+      "p90_ms": 1.502
     },
     {
       "from": "exited",
       "to": "cleaned_up",
-      "p50_ms": 0.178,
-      "p90_ms": 0.209
+      "p50_ms": 0.166,
+      "p90_ms": 0.192
     }
   ],
   "warm_phases": [
     {
       "from": "start",
       "to": "state_dir",
-      "p50_ms": 0.079,
-      "p90_ms": 0.236
+      "p50_ms": 0.075,
+      "p90_ms": 0.224
     },
     {
       "from": "state_dir",
       "to": "cgroup",
-      "p50_ms": 0.118,
-      "p90_ms": 0.216
+      "p50_ms": 0.119,
+      "p90_ms": 0.169
     },
     {
       "from": "cgroup",
       "to": "init_start",
-      "p50_ms": 2.617,
-      "p90_ms": 3.813
+      "p50_ms": 2.565,
+      "p90_ms": 3.846
     },
     {
       "from": "init_start",
       "to": "rootfs_ready",
-      "p50_ms": 0.77,
-      "p90_ms": 1.381
+      "p50_ms": 0.779,
+      "p90_ms": 1.419
     },
     {
       "from": "rootfs_ready",
       "to": "namespaces_ready",
       "p50_ms": 0.146,
-      "p90_ms": 0.335
+      "p90_ms": 0.368
     },
     {
       "from": "namespaces_ready",
       "to": "request_sent",
-      "p50_ms": 18.792,
-      "p90_ms": 25.512
+      "p50_ms": 17.015,
+      "p90_ms": 23.051
     },
     {
       "from": "request_sent",
       "to": "request_received",
-      "p50_ms": 0.119,
-      "p90_ms": 0.862
+      "p50_ms": 0.105,
+      "p90_ms": 0.507
     },
     {
       "from": "request_received",
       "to": "exec",
       "p50_ms": 0.008,
-      "p90_ms": 0.022
+      "p90_ms": 0.023
     },
     {
       "from": "exec",
       "to": "exited",
-      "p50_ms": 1.227,
-      "p90_ms": 2.82
+      "p50_ms": 1.041,
+      "p90_ms": 2.972
     }
   ],
   "warm_fill": {
     "n": 200,
-    "min_ms": 2.95,
-    "p50_ms": 4.131,
-    "p90_ms": 5.69,
-    "p99_ms": 9.691,
-    "mean_ms": 4.465,
-    "max_ms": 11.402,
+    "min_ms": 2.88,
+    "p50_ms": 4.11,
+    "p90_ms": 5.905,
+    "p99_ms": 7.874,
+    "mean_ms": 4.397,
+    "max_ms": 11.235,
     "failed": 0
   },
-  "loadavg_before": "2.85 5.36 5.01 3/1153 4100223",
-  "loadavg_after": "4.73 5.24 5.00 7/1197 4162363",
+  "loadavg_before": "2.14 3.62 4.39 3/1058 4169402",
+  "loadavg_after": "3.67 3.70 4.33 6/1119 38541",
   "notes": [
     "Every row runs /bin/true from Alpine 3.24 and is timed the same way: wall time of the harness running the CLI until it exits.",
     "gcr and runc rows create pid, mount, uts, ipc and network namespaces (gcr --host-net skips network). Network namespaces contain only lo.",
