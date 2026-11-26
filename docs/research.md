@@ -33,4 +33,4 @@ A microVM or gVisor build is out of scope for two days. A plain-Linux container 
 2. **Warm pool.** FlashCube-style: pre-create the cgroup, overlay rootfs and namespaces with a parked init process; on request, hand it the command. Measure request-to-exit latency.
 3. **Comparison.** Same command (`/bin/true` in an Alpine rootfs) through `docker run --rm` and `runc run` on the same host.
 
-Headline: request-to-exit latency (p50/p99) for cold start, warm start, runc and Docker, plus the per-phase breakdown. This is honest (all measured on Doji), comparable to well-known tools, and explainable in an interview.
+Headline: request-to-exit latency (p50/p99) for cold start, warm start, runc and Docker, plus the per-phase breakdown. This is honest (all measured on one host), comparable to well-known tools, and explainable in an interview.

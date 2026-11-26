@@ -6,23 +6,23 @@ The question it answers: how fast can a plain Linux container start, where does 
 
 ## A real run
 
-From [results/demo.txt](results/demo.txt), recorded by [scripts/demo.sh](scripts/demo.sh) as root on Debian 13, kernel 6.12 (overlay line shortened):
+From [results/demo.txt](results/demo.txt), recorded by [scripts/demo.sh](scripts/demo.sh) as root on Debian 13, kernel 6.12:
 
 ```
 $ gcr run --memory 64m --pids 32 --hostname sandbox -- sh -c 'echo "pid $$ on $(hostname)"; ls /sys/class/net; cat /etc/alpine-release; mount | head -1'
 pid 1 on sandbox
 lo
 3.24.4
-overlay on / type overlay (rw,relatime,lowerdir=.../rootfs,upperdir=/run/gcr/13d5eacf0e9c/upper,workdir=/run/gcr/13d5eacf0e9c/work,uuid=on)
+overlay on / type overlay (rw,relatime,lowerdir=./rootfs,upperdir=/run/gcr/c983154ddda4/upper,workdir=/run/gcr/c983154ddda4/work,uuid=on)
 
 $ gcr run --memory 32m -- tail /dev/zero; echo "exit $?"
 exit 137
 
 $ gcr serve --pool 4 &
 $ gcr exec -- sh -c 'echo hello from $(hostname); echo scratch > /tmp/note'
-hello from 9bddaf6b3753
+hello from a1fdd2f7969b
 $ gcr exec -- sh -c 'echo hello from $(hostname); cat /tmp/note 2>/dev/null || echo "no /tmp/note: fresh container"'
-hello from afea346b0149
+hello from 3acd340d0683
 no /tmp/note: fresh container
 $ kill %1
 $ echo "containers left: $(ls /run/gcr | wc -l) state dirs, $(find /sys/fs/cgroup/gcr -mindepth 1 -type d | wc -l) cgroups"

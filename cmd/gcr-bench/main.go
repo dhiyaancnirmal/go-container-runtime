@@ -146,10 +146,18 @@ func main() {
 			log.Printf("%d/%d rounds", i+1, *n)
 		}
 	}
+	// Record argv with local paths shortened so the results file holds no
+	// machine-specific directories.
+	short := strings.NewReplacer(*gcr, "gcr", *rootfs, "rootfs", tmp, "$TMP")
 	for ci, c := range cases {
 		s := summarize(samples[ci])
 		s.Failed = failed[ci]
-		rep.Cases = append(rep.Cases, caseResult{c, s})
+		shown := c
+		shown.Argv = nil
+		for _, a := range c.Argv {
+			shown.Argv = append(shown.Argv, short.Replace(a))
+		}
+		rep.Cases = append(rep.Cases, caseResult{shown, s})
 	}
 
 	// Phase breakdowns come from separate runs so writing timing files does
@@ -315,9 +323,6 @@ func hostInfo() map[string]string {
 		if out, err := exec.Command(argv[0], argv[1:]...).Output(); err == nil {
 			h[name] = strings.SplitN(strings.TrimSpace(string(out)), "\n", 2)[0]
 		}
-	}
-	if b, err := os.ReadFile("/proc/sys/kernel/hostname"); err == nil {
-		h["hostname"] = strings.TrimSpace(string(b))
 	}
 	return h
 }

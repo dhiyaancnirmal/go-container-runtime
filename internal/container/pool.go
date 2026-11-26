@@ -105,13 +105,15 @@ func (p *Pool) refill() {
 	go func() {
 		defer p.wg.Done()
 		w, err := p.startWarm()
-		if err != nil {
-			log.Printf("pool refill: %v", err)
-			return
-		}
 		p.mu.Lock()
 		closed := p.closed
 		p.mu.Unlock()
+		if err != nil {
+			if !closed { // during Close, killed refills are expected
+				log.Printf("pool refill: %v", err)
+			}
+			return
+		}
 		if closed {
 			w.c.Kill()
 			w.c.Wait()

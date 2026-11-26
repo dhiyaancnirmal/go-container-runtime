@@ -5,7 +5,8 @@ set -u
 cd "$(dirname "$0")/.."
 export PATH="$PWD/bin:$PATH" GCR_ROOTFS="$PWD/rootfs"
 
-show() { printf '$ %s\n' "$*"; sh -c "$*"; }
+# Output is shown verbatim except that the checkout path is printed as ".".
+show() { printf '$ %s\n' "$*"; sh -c "$*" 2>&1 | sed "s#$PWD#.#g"; }
 
 show 'gcr run --memory 64m --pids 32 --hostname sandbox -- sh -c '\''echo "pid $$ on $(hostname)"; ls /sys/class/net; cat /etc/alpine-release; mount | head -1'\'''
 echo

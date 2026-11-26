@@ -2,16 +2,16 @@ $ gcr run --memory 64m --pids 32 --hostname sandbox -- sh -c 'echo "pid $$ on $(
 pid 1 on sandbox
 lo
 3.24.4
-overlay on / type overlay (rw,relatime,lowerdir=/home/dhiyaan/Code/go-container-runtime/rootfs,upperdir=/run/gcr/d51e44b1489b/upper,workdir=/run/gcr/d51e44b1489b/work,uuid=on)
+overlay on / type overlay (rw,relatime,lowerdir=./rootfs,upperdir=/run/gcr/c983154ddda4/upper,workdir=/run/gcr/c983154ddda4/work,uuid=on)
 
 $ gcr run --memory 32m -- tail /dev/zero; echo "exit $?"
 exit 137
 
 $ gcr serve --pool 4 &
 $ gcr exec -- sh -c 'echo hello from $(hostname); echo scratch > /tmp/note'
-hello from f9035c03a7c2
+hello from a1fdd2f7969b
 $ gcr exec -- sh -c 'echo hello from $(hostname); cat /tmp/note 2>/dev/null || echo "no /tmp/note: fresh container"'
-hello from 401a2b8ee69f
+hello from 3acd340d0683
 no /tmp/note: fresh container
 $ kill %1
 $ echo "containers left: $(ls /run/gcr | wc -l) state dirs, $(find /sys/fs/cgroup/gcr -mindepth 1 -type d | wc -l) cgroups"
