@@ -22,7 +22,37 @@ type Pool struct {
 
 	mu     sync.Mutex
 	closed bool
-	wg     sync.WaitGroup
+	live   map[*Container]struct{} // every container started, idle or running
+	wg     sync.WaitGroup          // refills, in-flight execs and their cleanups
+}
+
+// track records c so Close can kill it. If the pool is already closing, c is
+// killed at once.
+func (p *Pool) track(c *Container) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for old := range p.live {
+		select {
+		case <-old.Done():
+			delete(p.live, old)
+		default:
+		}
+	}
+	p.live[c] = struct{}{}
+	if p.closed {
+		c.Kill()
+	}
+}
+
+// begin registers one unit of work with the pool unless it is closing.
+func (p *Pool) begin() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return false
+	}
+	p.wg.Add(1)
+	return true
 }
 
 type warm struct {
@@ -43,7 +73,7 @@ type ExecResult struct {
 func NewPool(tmpl Spec, size int) *Pool {
 	tmpl.ID, tmpl.Hostname, tmpl.Args = "", "", nil
 	tmpl.Stdin, tmpl.Stdout, tmpl.Stderr = nil, nil, nil
-	p := &Pool{tmpl: tmpl, size: size, ready: make(chan *warm, size)}
+	p := &Pool{tmpl: tmpl, size: size, ready: make(chan *warm, size), live: map[*Container]struct{}{}}
 	for range size {
 		p.refill()
 	}
@@ -58,6 +88,7 @@ func (p *Pool) startWarm() (*warm, error) {
 	if err != nil {
 		return nil, err
 	}
+	p.track(c)
 	var b [1]byte
 	if _, err := io.ReadFull(c.control, b[:]); err != nil {
 		c.Kill()
@@ -68,12 +99,9 @@ func (p *Pool) startWarm() (*warm, error) {
 }
 
 func (p *Pool) refill() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.closed {
+	if !p.begin() {
 		return
 	}
-	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
 		w, err := p.startWarm()
@@ -101,6 +129,10 @@ func (p *Pool) Exec(args, env []string, stdio [3]*os.File) (ExecResult, error) {
 	if env == nil {
 		env = DefaultEnv
 	}
+	if !p.begin() {
+		return ExecResult{}, errors.New("pool is shutting down")
+	}
+	defer p.wg.Done()
 	var w *warm
 	hit := true
 	select {
@@ -141,10 +173,14 @@ func (p *Pool) Exec(args, env []string, stdio [3]*os.File) (ExecResult, error) {
 	return ExecResult{ExitCode: code, PoolHit: hit, FillNS: w.fillNS, Phases: phases}, nil
 }
 
-// Close kills and removes every idle container. Running ones finish normally.
+// Close kills every container, idle or running, and waits until each one's
+// cgroup and state directory are removed.
 func (p *Pool) Close() {
 	p.mu.Lock()
 	p.closed = true
+	for c := range p.live {
+		c.Kill()
+	}
 	p.mu.Unlock()
 	p.wg.Wait()
 	for {

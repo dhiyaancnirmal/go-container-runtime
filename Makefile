@@ -1,5 +1,5 @@
 GO ?= go
-# Doji is shared: keep builds to two parallel jobs.
+# Keep builds to two parallel jobs on shared hosts.
 GOFLAGS += -p=2
 
 .PHONY: build test rootfs bench clean

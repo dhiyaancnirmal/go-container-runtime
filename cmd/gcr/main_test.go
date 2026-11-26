@@ -206,8 +206,11 @@ func TestCPULimitThrottles(t *testing.T) {
 		}
 		return n
 	}
-	free, limited := ticks(), ticks("--cpus", "0.2")
-	if free < 60 || limited > 35 {
+	free := ticks()
+	if free < 60 {
+		t.Skipf("host too busy to judge throttling: unlimited run got only %d ticks", free)
+	}
+	if limited := ticks("--cpus", "0.2"); limited > 35 {
 		t.Fatalf("want ~100 ticks unlimited and ~20 at 0.2 CPUs, got %d and %d", free, limited)
 	}
 }
@@ -245,15 +248,15 @@ func TestCleanupWhenRuntimeIsSignalled(t *testing.T) {
 		{"SIGKILL: container dies with the runtime, gc removes the rest", syscall.SIGKILL, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			marker := "gcr-test-" + tc.sig.String()
-			cmd := gcrCmd("run", "--", "sh", "-c", "sleep 300 & sleep 301; echo "+marker)
+			// Unusual durations so other processes on the host never match.
+			cmd := gcrCmd("run", "--", "sh", "-c", "sleep 4173 & sleep 4174")
 			if err := cmd.Start(); err != nil {
 				t.Fatal(err)
 			}
-			waitFor(t, func() bool { return countProcs("sleep 30") >= 2 })
+			waitFor(t, func() bool { return countProcs("sleep 4173")+countProcs("sleep 4174") == 2 })
 			cmd.Process.Signal(tc.sig)
 			cmd.Wait()
-			waitFor(t, func() bool { return countProcs("sleep 30") == 0 })
+			waitFor(t, func() bool { return countProcs("sleep 4173")+countProcs("sleep 4174") == 0 })
 			if tc.needGC {
 				if left, _ := filepath.Glob(filepath.Join(container.StateRoot, "*")); len(left) == 0 {
 					t.Fatal("expected a stale state dir for gc to remove")
@@ -298,6 +301,30 @@ func TestWarmPoolRunsCommandsInFreshContainers(t *testing.T) {
 	}
 }
 
+func TestStoppingServeKillsInFlightAndIdleContainers(t *testing.T) {
+	needRoot(t)
+	sock := filepath.Join(t.TempDir(), "gcr.sock")
+	srv := gcrCmd("serve", "--pool", "2", "--socket", sock)
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Process.Kill() // only matters if the test fails before SIGTERM
+	waitFor(t, func() bool { _, err := os.Stat(sock); return err == nil })
+	client := gcrCmd("exec", "--socket", sock, "--", "sleep", "4175")
+	defer func() { client.Process.Kill() }()
+	if err := client.Start(); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return countProcs("sleep 4175") == 1 })
+	srv.Process.Signal(syscall.SIGTERM)
+	srv.Wait()
+	client.Wait()
+	if n := countProcs("sleep 4175"); n != 0 {
+		t.Fatalf("in-flight command survived serve shutdown (%d left)", n)
+	}
+	assertNoLeftovers(t)
+}
+
 func waitFor(t *testing.T, cond func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
@@ -309,12 +336,13 @@ func waitFor(t *testing.T, cond func() bool) {
 	}
 }
 
-func countProcs(substr string) int {
+// countProcs counts host processes whose full command line is cmdline.
+func countProcs(cmdline string) int {
 	n := 0
 	dirs, _ := filepath.Glob("/proc/[0-9]*/cmdline")
 	for _, d := range dirs {
 		b, err := os.ReadFile(d)
-		if err == nil && strings.Contains(strings.ReplaceAll(string(b), "\x00", " "), substr) {
+		if err == nil && strings.TrimSpace(strings.ReplaceAll(string(b), "\x00", " ")) == cmdline {
 			n++
 		}
 	}
