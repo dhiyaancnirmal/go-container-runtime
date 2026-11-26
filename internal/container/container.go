@@ -246,6 +246,13 @@ func (c *Container) Kill() error {
 // Done is closed when Wait has finished.
 func (c *Container) Done() <-chan struct{} { return c.done }
 
+// WaitExit waits only for the init process to exit and returns its exit
+// code. Call Wait afterwards to clean up.
+func (c *Container) WaitExit() int {
+	<-c.exited
+	return exitCode(c.cmd.ProcessState, c.cmdErr)
+}
+
 // Wait waits for the container's init process to exit, then removes the
 // cgroup and state directory. It is safe to call more than once.
 func (c *Container) Wait() (Result, error) {

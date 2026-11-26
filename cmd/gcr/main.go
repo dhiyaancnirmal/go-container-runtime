@@ -165,6 +165,7 @@ func cmdServe(args []string) error {
 func cmdExec(args []string) (int, error) {
 	fs := flag.NewFlagSet("exec", flag.ExitOnError)
 	socket := fs.String("socket", defaultSocket, "socket of a running gcr serve")
+	timing := fs.String("timing", "", "write the pool's result and phase timings as JSON to this file")
 	fs.Parse(args)
 	if fs.NArg() == 0 {
 		return 125, errors.New("no command")
@@ -172,6 +173,12 @@ func cmdExec(args []string) (int, error) {
 	res, err := container.ExecRemote(*socket, fs.Args(), nil)
 	if err != nil {
 		return 125, err
+	}
+	if *timing != "" {
+		b, _ := json.Marshal(res)
+		if err := os.WriteFile(*timing, b, 0o644); err != nil {
+			return 125, err
+		}
 	}
 	return res.ExitCode, nil
 }

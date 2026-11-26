@@ -124,8 +124,21 @@ func (p *Pool) Exec(args, env []string, stdio [3]*os.File) (ExecResult, error) {
 		c.Wait()
 		return ExecResult{}, fmt.Errorf("send request: %w", err)
 	}
-	res, err := c.Wait()
-	return ExecResult{ExitCode: res.ExitCode, PoolHit: hit, FillNS: w.fillNS, Phases: res.Phases}, err
+	// Reply as soon as the command exits; tear the container down off the
+	// request path, like the refill.
+	code := c.WaitExit()
+	c.mark("exited")
+	phases := mergePhases(c.phases, readPhases(c.timing))
+	c.timing.Close()
+	c.timing = nil
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		if _, err := c.Wait(); err != nil {
+			log.Printf("cleanup %s: %v", c.ID, err)
+		}
+	}()
+	return ExecResult{ExitCode: code, PoolHit: hit, FillNS: w.fillNS, Phases: phases}, nil
 }
 
 // Close kills and removes every idle container. Running ones finish normally.
